@@ -1,0 +1,14 @@
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+.bundle
+config/master.key
+log/*
+tmp/*
+storage/*
+coverage
+vendor/bundle
+Dockerfile*
+compose*.yaml

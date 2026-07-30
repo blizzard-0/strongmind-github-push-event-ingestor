@@ -1,0 +1,72 @@
+x-app: &app
+  build:
+    context: .
+  environment: &app-environment
+    DB_HOST: db
+    DB_PORT: 5432
+    POSTGRES_USER: ${POSTGRES_USER:-strongmind}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-strongmind_development}
+    DB_NAME: ${DB_NAME:-strongmind_github_events_development}
+    TEST_DB_NAME: ${TEST_DB_NAME:-strongmind_github_events_test}
+    RAILS_MAX_THREADS: ${RAILS_MAX_THREADS:-5}
+  depends_on:
+    db:
+      condition: service_healthy
+
+services:
+  db:
+    image: postgres:17.5-bookworm
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-strongmind}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-strongmind_development}
+      POSTGRES_DB: ${DB_NAME:-strongmind_github_events_development}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  web:
+    <<: *app
+    environment:
+      <<: *app-environment
+      RAILS_ENV: development
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - --fail
+        - --silent
+        - http://localhost:3000/up
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  ingest:
+    <<: *app
+    profiles:
+      - tools
+    command:
+      - bin/rails
+      - runner
+      - puts "Ingestion will be implemented in Phase 2"
+
+  test:
+    <<: *app
+    profiles:
+      - tools
+    environment:
+      <<: *app-environment
+      RAILS_ENV: test
+    command:
+      - bin/rails
+      - db:prepare
+
+volumes:
+  postgres_data:
