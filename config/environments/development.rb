@@ -2,6 +2,7 @@ require "active_support/core_ext/integer/time"
 
 Rails.application.configure do
   config.logger = ActiveSupport::TaggedLogging.logger(STDOUT)
+  config.log_level = ENV.fetch("RAILS_LOG_LEVEL", "info")
 
   # Settings specified here will take precedence over those in config/application.rb.
 
