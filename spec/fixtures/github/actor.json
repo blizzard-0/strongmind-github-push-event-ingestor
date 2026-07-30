@@ -1,0 +1,12 @@
+{
+  "login": "octocat",
+  "id": 1001,
+  "node_id": "MDQ6VXNlcjEwMDE=",
+  "avatar_url": "https://avatars.githubusercontent.com/u/1001?v=4",
+  "url": "https://api.github.com/users/octocat",
+  "html_url": "https://github.com/octocat",
+  "type": "User",
+  "site_admin": false,
+  "name": "The Octocat",
+  "public_repos": 8
+}

@@ -1,0 +1,16 @@
+{
+  "id": "event-malformed",
+  "type": "PushEvent",
+  "actor": {
+    "id": 1001
+  },
+  "repo": {
+    "id": 2001,
+    "name": "octocat/hello-world"
+  },
+  "payload": {
+    "ref": "refs/heads/main",
+    "head": "abc123"
+  },
+  "created_at": "not-a-timestamp"
+}
