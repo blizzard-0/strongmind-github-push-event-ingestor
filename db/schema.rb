@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_07_30_010100) do
+ActiveRecord::Schema[8.0].define(version: 2026_07_30_010200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -26,6 +26,29 @@ ActiveRecord::Schema[8.0].define(version: 2026_07_30_010100) do
     t.check_constraint "jsonb_typeof(raw_payload) = 'object'::text", name: "actors_raw_payload_is_object"
   end
 
+  create_table "push_events", force: :cascade do |t|
+    t.string "github_event_id", null: false
+    t.bigint "repository_github_id", null: false
+    t.bigint "push_id", null: false
+    t.string "ref", null: false
+    t.string "head", null: false
+    t.string "before", null: false
+    t.datetime "github_created_at"
+    t.jsonb "raw_payload", default: {}, null: false
+    t.bigint "actor_id"
+    t.bigint "repository_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["actor_id"], name: "index_push_events_on_actor_id"
+    t.index ["github_created_at"], name: "index_push_events_on_github_created_at"
+    t.index ["github_event_id"], name: "index_push_events_on_github_event_id", unique: true
+    t.index ["push_id"], name: "index_push_events_on_push_id"
+    t.index ["repository_github_id", "github_created_at"], name: "idx_on_repository_github_id_github_created_at_0f48420060"
+    t.index ["repository_github_id"], name: "index_push_events_on_repository_github_id"
+    t.index ["repository_id"], name: "index_push_events_on_repository_id"
+    t.check_constraint "jsonb_typeof(raw_payload) = 'object'::text", name: "push_events_raw_payload_is_object"
+  end
+
   create_table "repositories", force: :cascade do |t|
     t.bigint "github_id", null: false
     t.string "name"
@@ -37,4 +60,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_07_30_010100) do
     t.index ["github_id"], name: "index_repositories_on_github_id", unique: true
     t.check_constraint "jsonb_typeof(raw_payload) = 'object'::text", name: "repositories_raw_payload_is_object"
   end
+
+  add_foreign_key "push_events", "actors"
+  add_foreign_key "push_events", "repositories"
 end
