@@ -1,4 +1,5 @@
 x-app: &app
+  image: strongmind-github-events-app
   build:
     context: .
   environment: &app-environment
@@ -65,8 +66,7 @@ services:
       <<: *app-environment
       RAILS_ENV: test
     command:
-      - bin/rails
-      - db:prepare
+      - bin/test
 
 volumes:
   postgres_data:
