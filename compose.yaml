@@ -55,8 +55,7 @@ services:
       - tools
     command:
       - bin/rails
-      - runner
-      - puts "Ingestion will be implemented in Phase 2"
+      - github:ingest
 
   test:
     <<: *app
