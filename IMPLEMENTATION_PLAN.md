@@ -177,17 +177,18 @@ Ruby `Net::HTTP` avoids another dependency).
 6. Validate and extract the GitHub event ID, repository ID, push ID, ref, head,
    before, actor/repository API URLs, and event timestamp.
 7. Check for an existing `github_event_id`; log and count a duplicate when found.
-8. Resolve reusable actor and repository records and enrich only when necessary.
-9. Create the `PushEvent` with its structured fields, associations, and the complete
-   raw event hash in a short database transaction.
-10. Treat a uniqueness conflict as a duplicate, supporting races safely.
+8. Create and commit the `PushEvent` with its structured fields and the complete raw
+   event hash before making any enrichment request.
+9. Treat a uniqueness conflict as a duplicate, supporting races safely.
+10. Resolve reusable actor and repository records, enrich only when necessary, and
+    attach successful enrichment to the already-persisted event.
 11. Log success or a structured failure for that event.
 12. Log `ingestion.completed` with fetched, filtered, created, duplicate, malformed,
     enrichment-failure, and failed counts plus elapsed time.
 
-An individual enrichment failure will not discard an otherwise valid push event.
-The event is persisted with a nullable association and can be enriched on a later
-ingestion run.
+An individual enrichment failure cannot discard an otherwise valid push event because
+the event is durably committed before enrichment begins. It remains persisted with
+nullable associations and can be enriched on a later ingestion run.
 
 ## 7. Actor and repository enrichment strategy
 
