@@ -10,14 +10,16 @@ module Github
 
     def call(github_id:, api_url:)
       return skip(:missing_github_id, github_id) if github_id.nil?
-      return skip(:missing_api_url, github_id) if api_url.nil? || api_url.empty?
+      return skip(:missing_api_url, github_id) if api_url.blank?
 
       log(:info, "enrichment.started", github_id:, status: :started, fetched: false)
 
       actor = Actor.find_by(github_id:)
       return reuse(actor) if usable?(actor)
 
+      fetched = false
       payload = fetch_payload(api_url)
+      fetched = true
       validate_identity!(payload, github_id)
       actor = persist(actor, github_id:, api_url:, payload:)
 
@@ -30,7 +32,7 @@ module Github
         github_id:,
         status: :failed,
         reason: error.class.name,
-        fetched: true
+        fetched:
       )
       raise
     end

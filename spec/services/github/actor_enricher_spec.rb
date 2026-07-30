@@ -46,6 +46,18 @@ RSpec.describe Github::ActorEnricher do
     expect(client).not_to have_received(:fetch_resource)
   end
 
+  it "refreshes an existing actor whose enrichment is incomplete" do
+    actor = Actor.create!(github_id:, api_url:, raw_payload: {}, enriched_at: nil)
+
+    result = enricher.call(github_id:, api_url:)
+
+    expect(result).to be_fetched
+    expect(result.record).to eq(actor)
+    expect(actor.reload.raw_payload).to eq(payload)
+    expect(actor.enriched_at).to eq(clock.call)
+    expect(client).to have_received(:fetch_resource).once
+  end
+
   it "skips missing GitHub IDs without creating a record or fetching" do
     result = enricher.call(github_id: nil, api_url:)
 
@@ -106,6 +118,15 @@ RSpec.describe Github::ActorEnricher do
     expect { enricher.call(github_id:, api_url:) }.to raise_error(failure)
   end
 
+  it "preserves permanent resource failures" do
+    failure = Github::Errors::PermanentHttpFailure.new("not found", status: 404)
+    allow(client).to receive(:fetch_resource).and_raise(failure)
+
+    expect { enricher.call(github_id:, api_url:) }.to raise_error(failure) do |error|
+      expect(error.status).to eq(404)
+    end
+  end
+
   it "preserves rate-limit metadata" do
     failure = Github::Errors::RateLimited.new(
       "limited",
@@ -127,5 +148,23 @@ RSpec.describe Github::ActorEnricher do
     expect(logger).to have_received(:info).with(include("event=enrichment.started", "entity=actor"))
     expect(logger).to have_received(:info).with(include("event=enrichment.succeeded", "fetched=true"))
     expect(logger).not_to have_received(:info).with(include("raw_payload"))
+  end
+
+  it "logs skipped and failed enrichment with concise reasons" do
+    enricher.call(github_id: nil, api_url:)
+    failure = Github::Errors::PermanentHttpFailure.new("not found", status: 404)
+    allow(client).to receive(:fetch_resource).and_raise(failure)
+
+    expect { enricher.call(github_id:, api_url:) }.to raise_error(failure)
+    expect(logger).to have_received(:info).with(include(
+      "event=enrichment.skipped",
+      "reason=missing_github_id",
+      "fetched=false"
+    ))
+    expect(logger).to have_received(:error).with(include(
+      "event=enrichment.failed",
+      "reason=Github::Errors::PermanentHttpFailure",
+      "fetched=false"
+    ))
   end
 end
