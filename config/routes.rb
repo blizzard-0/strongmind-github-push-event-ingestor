@@ -1,6 +1,12 @@
 Rails.application.routes.draw do
   get "health", to: "health#show"
 
+  namespace :api do
+    namespace :v1 do
+      resources :push_events, only: %i[index show]
+    end
+  end
+
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
