@@ -1,0 +1,131 @@
+require "rails_helper"
+
+RSpec.describe Github::ActorEnricher do
+  subject(:enricher) { described_class.new(client:, logger:, clock:) }
+
+  let(:client) { instance_double(Github::Client) }
+  let(:logger) { instance_spy(ActiveSupport::Logger) }
+  let(:clock) { -> { Time.utc(2026, 7, 30, 12) } }
+  let(:github_id) { 1001 }
+  let(:api_url) { "https://api.github.com/users/octocat" }
+  let(:payload) { JSON.parse(Rails.root.join("spec/fixtures/github/actor.json").read) }
+  let(:response) { Github::Client::Response.new(data: payload, headers: {}, status: 200) }
+
+  before { allow(client).to receive(:fetch_resource).and_return(response) }
+
+  it "fetches and durably persists a new actor with its complete payload" do
+    result = enricher.call(github_id:, api_url:)
+
+    expect(result).to be_fetched
+    expect(result.record).to be_persisted
+    expect(result.record).to have_attributes(
+      github_id:,
+      login: "octocat",
+      api_url:,
+      enriched_at: clock.call
+    )
+    expect(result.record.raw_payload).to eq(payload)
+    expect(Actor.find_by(github_id:).raw_payload).to eq(payload)
+    expect(client).to have_received(:fetch_resource).with(api_url).once
+  end
+
+  it "reuses usable cached enrichment without an HTTP request" do
+    actor = Actor.create!(
+      github_id:,
+      login: "cached",
+      api_url:,
+      raw_payload: {"id" => github_id, "login" => "cached"},
+      enriched_at: 1.year.ago
+    )
+
+    result = enricher.call(github_id:, api_url:)
+
+    expect(result).to be_reused
+    expect(result.record).to eq(actor)
+    expect(result.fetched).to be(false)
+    expect(client).not_to have_received(:fetch_resource)
+  end
+
+  it "skips missing GitHub IDs without creating a record or fetching" do
+    result = enricher.call(github_id: nil, api_url:)
+
+    expect(result).to be_skipped
+    expect(result.reason).to eq(:missing_github_id)
+    expect(Actor.count).to eq(0)
+    expect(client).not_to have_received(:fetch_resource)
+  end
+
+  it "skips missing API URLs without creating a record or fetching" do
+    result = enricher.call(github_id:, api_url: nil)
+
+    expect(result).to be_skipped
+    expect(result.reason).to eq(:missing_api_url)
+    expect(Actor.count).to eq(0)
+    expect(client).not_to have_received(:fetch_resource)
+  end
+
+  it "rejects identity mismatches without persisting the payload" do
+    payload["id"] = 9999
+
+    expect { enricher.call(github_id:, api_url:) }
+      .to raise_error(Github::Errors::IdentityMismatch) do |error|
+        expect(error.expected_id).to eq(github_id)
+        expect(error.actual_id).to eq(9999)
+      end
+    expect(Actor.count).to eq(0)
+  end
+
+  it "reuses a valid record created during a uniqueness race" do
+    concurrent = nil
+    allow(Actor).to receive(:create!) do
+      concurrent = Actor.new(
+        github_id:,
+        login: "concurrent",
+        api_url:,
+        raw_payload: {"id" => github_id},
+        enriched_at: clock.call
+      )
+      concurrent.save!
+      raise ActiveRecord::RecordNotUnique
+    end
+
+    result = enricher.call(github_id:, api_url:)
+
+    expect(result).to be_fetched
+    expect(result.record).to eq(concurrent)
+    expect(Actor.where(github_id:).count).to eq(1)
+  end
+
+  it "preserves client failure information" do
+    failure = Github::Errors::RetryExhausted.new(
+      attempts: 3,
+      last_error: Github::Errors::TransientHttpFailure.new("unavailable", status: 503)
+    )
+    allow(client).to receive(:fetch_resource).and_raise(failure)
+
+    expect { enricher.call(github_id:, api_url:) }.to raise_error(failure)
+  end
+
+  it "preserves rate-limit metadata" do
+    failure = Github::Errors::RateLimited.new(
+      "limited",
+      retry_delay: 30,
+      status: 429,
+      headers: {rate_limit_reset: "1785430860"}
+    )
+    allow(client).to receive(:fetch_resource).and_raise(failure)
+
+    expect { enricher.call(github_id:, api_url:) }.to raise_error(failure) do |error|
+      expect(error.retry_delay).to eq(30)
+      expect(error.headers[:rate_limit_reset]).to eq("1785430860")
+    end
+  end
+
+  it "emits structured lifecycle logs without raw payloads" do
+    enricher.call(github_id:, api_url:)
+
+    expect(logger).to have_received(:info).with(include("event=enrichment.started", "entity=actor"))
+    expect(logger).to have_received(:info).with(include("event=enrichment.succeeded", "fetched=true"))
+    expect(logger).not_to have_received(:info).with(include("raw_payload"))
+  end
+end

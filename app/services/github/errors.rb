@@ -32,6 +32,16 @@ module Github
       end
     end
 
+    class IdentityMismatch < Error
+      attr_reader :expected_id, :actual_id
+
+      def initialize(expected_id:, actual_id:)
+        super("GitHub enrichment identity mismatch: expected #{expected_id}, got #{actual_id.inspect}")
+        @expected_id = expected_id
+        @actual_id = actual_id
+      end
+    end
+
     class PermanentHttpFailure < Error; end
     class TransientHttpFailure < Error; end
 
