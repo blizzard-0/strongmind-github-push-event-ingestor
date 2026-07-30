@@ -44,7 +44,7 @@ services:
         - curl
         - --fail
         - --silent
-        - http://localhost:3000/up
+        - http://localhost:3000/health
       interval: 5s
       timeout: 3s
       retries: 10
