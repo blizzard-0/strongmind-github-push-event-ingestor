@@ -126,7 +126,9 @@ module Github
 
     def repository_api_url(event, errors, warnings)
       repo_url = event.dig("repo", "url") if event["repo"].is_a?(Hash)
-      payload_url = event.dig("payload", "repository", "url") if event.dig("payload", "repository").is_a?(Hash)
+      payload = event["payload"]
+      payload_repository = payload["repository"] if payload.is_a?(Hash)
+      payload_url = payload_repository["url"] if payload_repository.is_a?(Hash)
 
       optional_url(repo_url || payload_url, :repository_api_url, errors, warnings)
     end
